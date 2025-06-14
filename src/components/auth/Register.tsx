@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../../config/firebase';
+import { supabase } from '../../config/supabase';
 
 const Register: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -23,7 +22,13 @@ const Register: React.FC = () => {
     setLoading(true);
 
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
       navigate('/report');
     } catch (error: any) {
       setError(error.message);
@@ -133,7 +138,7 @@ const Register: React.FC = () => {
                   </svg>
                 </span>
               ) : null}
-              Create Account
+              Register
             </button>
           </div>
         </form>

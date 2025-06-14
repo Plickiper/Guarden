@@ -1,19 +1,27 @@
 import React from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
-import { auth } from '../../config/firebase';
-import { signOut } from 'firebase/auth';
+import { supabase } from '../../config/supabase';
 
-// Admin email list - should match the one in App.tsx
-const ADMIN_EMAILS = ['admin@mail.com'];
+// Hardcoded admin email
+const ADMIN_EMAIL = 'ashie23122312@gmail.com';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
-  const user = auth.currentUser;
-  const isAdmin = user && ADMIN_EMAILS.includes(user.email || '');
+  const [isAdmin, setIsAdmin] = React.useState(false);
+
+  React.useEffect(() => {
+    const checkAdmin = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email) {
+        setIsAdmin(session.user.email === ADMIN_EMAIL);
+      }
+    };
+    checkAdmin();
+  }, []);
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
       navigate('/login');
     } catch (error) {
       console.error('Error signing out:', error);
@@ -38,6 +46,12 @@ const Layout: React.FC = () => {
                   className="border-transparent text-gray-500 hover:border-primary-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                 >
                   Report
+                </Link>
+                <Link
+                  to="/history"
+                  className="border-transparent text-gray-500 hover:border-primary-500 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                >
+                  History
                 </Link>
                 {isAdmin && (
                   <Link

@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+@import 'leaflet/dist/leaflet.css';
+@import './styles/map.css';
+
 @layer base {
   body {
     @apply bg-gray-50 text-gray-900;
