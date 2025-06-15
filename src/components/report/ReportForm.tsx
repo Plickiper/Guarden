@@ -17,6 +17,9 @@ interface ReportData {
   status: 'pending' | 'in-progress' | 'done';
   user_id: string;
   timestamp: number;
+  address?: string;
+  barangay?: string;
+  landmark?: string;
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
@@ -50,10 +53,30 @@ const ReportForm: React.FC = () => {
     getUser();
   }, []);
 
-  const handleLocationSelect = (lat: number, lng: number) => {
+  const handleLocationSelect = async (lat: number, lng: number) => {
     setLatitude(lat);
     setLongitude(lng);
     setLocation(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+    
+    try {
+      // Use OpenStreetMap Nominatim API for reverse geocoding
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+      );
+      const data = await response.json();
+      
+      if (data.address) {
+        const address = data.address;
+        const city = address.city || address.municipality || address.state_district || '';
+        const barangay = address.suburb || address.neighbourhood || '';
+        const landmark = address.amenity || address.road || '';
+        
+        setCity(city);
+        setLocation(`${landmark}, ${barangay}, ${city}`);
+      }
+    } catch (error) {
+      console.error('Error getting location details:', error);
+    }
   };
 
   const handlePinCurrentLocation = () => {
@@ -175,7 +198,7 @@ const ReportForm: React.FC = () => {
           {
             type: reportType,
             category: reportType === 'environmental' ? category : undefined,
-            city: reportType === 'regulatory' ? city : undefined,
+            city: city,
             violation_type: reportType === 'regulatory' ? violationType : undefined,
             description,
             location,
@@ -184,7 +207,10 @@ const ReportForm: React.FC = () => {
             timestamp: Date.now(),
             user_id: user?.id,
             latitude: latitude,
-            longitude: longitude
+            longitude: longitude,
+            address: location,
+            barangay: location.split(',')[1]?.trim(),
+            landmark: location.split(',')[0]?.trim()
           }
         ]);
 

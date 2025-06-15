@@ -1,32 +1,55 @@
-import React from 'react';
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import React, { ReactNode, useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../config/supabase';
+import AdminService from '../../services/adminService';
 
-// Hardcoded admin email
-const ADMIN_EMAIL = 'ashie23122312@gmail.com';
+interface LayoutProps {
+  children: ReactNode;
+}
 
-const Layout: React.FC = () => {
+const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
-  const [isAdmin, setIsAdmin] = React.useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const checkAdmin = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.email) {
-        setIsAdmin(session.user.email === ADMIN_EMAIL);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Current session:', session);
+        
+        if (session?.user?.id) {
+          console.log('Checking admin status for user ID:', session.user.id);
+          const adminService = AdminService.getInstance();
+          const adminStatus = await adminService.isAdmin(session.user.id);
+          console.log('Admin status:', adminStatus);
+          setIsAdmin(adminStatus);
+        } else {
+          console.log('No session or user ID found');
+          setIsAdmin(false);
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        setIsAdmin(false);
+      } finally {
+        setLoading(false);
       }
     };
     checkAdmin();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      navigate('/login');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -65,10 +88,10 @@ const Layout: React.FC = () => {
             </div>
             <div className="flex items-center">
               <button
-                onClick={handleLogout}
+                onClick={handleSignOut}
                 className="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
               >
-                Logout
+                Sign Out
               </button>
             </div>
           </div>
@@ -76,7 +99,7 @@ const Layout: React.FC = () => {
       </nav>
 
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <Outlet />
+        {children}
       </main>
     </div>
   );

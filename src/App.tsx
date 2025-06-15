@@ -3,19 +3,25 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { supabase } from './config/supabase';
 import { Session } from '@supabase/supabase-js';
 import { BackupService } from './services/backupService';
+import AdminService from './services/adminService';
 
-// Import components directly instead of lazy loading
+// Import components
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import ReportForm from './components/report/ReportForm';
 import ReportHistory from './components/report/ReportHistory';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Layout from './components/layout/Layout';
+import LandingPage from './components/landing/LandingPage';
+
+// Import styles
+import './styles/landing.css';
 
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [backupService, setBackupService] = useState<BackupService | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     // Get initial session
@@ -34,9 +40,23 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Check admin status when session changes
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (session?.user?.id) {
+        const adminService = AdminService.getInstance();
+        const adminStatus = await adminService.isAdmin(session.user.id);
+        setIsAdmin(adminStatus);
+      } else {
+        setIsAdmin(false);
+      }
+    };
+    checkAdminStatus();
+  }, [session]);
+
   // Initialize backup service only for admin users
   useEffect(() => {
-    if (session?.user?.email === 'admin@guarden.com') {
+    if (isAdmin) {
       const service = BackupService.getInstance();
       service.startBackupService();
       setBackupService(service);
@@ -50,7 +70,7 @@ function App() {
         backupService.stopBackupService();
       }
     };
-  }, [session]);
+  }, [isAdmin]);
 
   if (loading) {
     return (
@@ -63,16 +83,51 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={!session ? <Navigate to="/login" /> : <Navigate to="/report" />} />
-        <Route path="/login" element={!session ? <Login /> : <Navigate to="/report" />} />
-        <Route path="/register" element={!session ? <Register /> : <Navigate to="/report" />} />
-        
-        {/* Protected Routes */}
-        <Route element={<Layout />}>
-          <Route path="/report" element={session ? <ReportForm /> : <Navigate to="/login" />} />
-          <Route path="/history" element={session ? <ReportHistory /> : <Navigate to="/login" />} />
-          <Route path="/admin" element={session ? <AdminDashboard /> : <Navigate to="/login" />} />
-        </Route>
+        <Route path="/" element={<LandingPage />} />
+        <Route
+          path="/login"
+          element={!session ? <Login /> : <Navigate to="/report" />}
+        />
+        <Route
+          path="/register"
+          element={!session ? <Register /> : <Navigate to="/report" />}
+        />
+        <Route
+          path="/report"
+          element={
+            session ? (
+              <Layout>
+                <ReportForm />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/history"
+          element={
+            session ? (
+              <Layout>
+                <ReportHistory />
+              </Layout>
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            isAdmin ? (
+              <Layout>
+                <AdminDashboard />
+              </Layout>
+            ) : (
+              <Navigate to="/report" />
+            )
+          }
+        />
       </Routes>
     </Router>
   );
