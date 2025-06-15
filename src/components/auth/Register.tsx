@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../config/supabase';
+import { supabase, REDIRECT_URL } from '../../config/supabase';
 import cleaningBackground from '../../assets/images/backgrounds/cleaning-background.jpg';
 
 const Register: React.FC = () => {
@@ -26,6 +26,9 @@ const Register: React.FC = () => {
       const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${REDIRECT_URL}/login`
+        }
       });
 
       if (error) throw error;
