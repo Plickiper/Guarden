@@ -2,6 +2,7 @@
   "name": "guarden-react",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://guarden-repo-mh84.vercel.app",
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
     "@headlessui/react": "^1.7.18",
