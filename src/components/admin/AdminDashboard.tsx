@@ -15,6 +15,7 @@ interface Report {
   status: 'pending' | 'in-progress' | 'done';
   timestamp: number;
   user_id: string;
+  user_email?: string;
 }
 
 const AdminDashboard: React.FC = () => {
@@ -34,13 +35,14 @@ const AdminDashboard: React.FC = () => {
 
   const fetchReports = async () => {
     try {
-      const { data, error } = await supabase
-        .from('reports')
+      // Get all reports with user information from the view
+      const { data: reportsData, error: reportsError } = await supabase
+        .from('reports_with_users')
         .select('*')
         .order('timestamp', { ascending: false });
 
-      if (error) throw error;
-      setReports(data || []);
+      if (reportsError) throw reportsError;
+      setReports(reportsData || []);
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -188,11 +190,24 @@ const AdminDashboard: React.FC = () => {
                     <table className="min-w-full divide-y divide-gray-300">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Type</th>
-                          <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Details</th>
-                          <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Location</th>
-                          <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
-                          <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Actions</th>
+                          <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
+                            Type
+                          </th>
+                          <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                            Description
+                          </th>
+                          <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                            Location
+                          </th>
+                          <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                            Status
+                          </th>
+                          <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                            Submitted By
+                          </th>
+                          <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                            Actions
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 bg-white">
@@ -225,6 +240,9 @@ const AdminDashboard: React.FC = () => {
                               </span>
                             </td>
                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                              {report.user_id}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                               <div className="space-y-2">
                                 <select
                                   value={selectedAgency}
@@ -245,28 +263,13 @@ const AdminDashboard: React.FC = () => {
                                   <option value="lbo@taguig.gov.ph">Taguig Building</option>
                                   <option value="cpdo@taguig.gov.ph">Taguig Planning</option>
                                   <option value="towertaguig@gmail.com">Taguig Environmental</option>
-                                  <option value="obo@makati.gov.ph">Makati Building</option>
                                 </select>
                                 <button
                                   onClick={() => handleSendEmail(report)}
                                   disabled={!selectedAgency || sendingEmail === report.id}
-                                  className={`inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded ${
-                                    !selectedAgency || sendingEmail === report.id
-                                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                      : 'bg-primary-600 text-white hover:bg-primary-700'
-                                  }`}
+                                  className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
                                 >
-                                  {sendingEmail === report.id ? (
-                                    <>
-                                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                      </svg>
-                                      Sending...
-                                    </>
-                                  ) : (
-                                    'Forward to Agency'
-                                  )}
+                                  {sendingEmail === report.id ? 'Sending...' : 'Send to Agency'}
                                 </button>
                                 <select
                                   value={report.status}
