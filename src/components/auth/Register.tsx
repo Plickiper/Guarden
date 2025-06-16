@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase, REDIRECT_URL } from '../../config/supabase';
 import cleaningBackground from '../../assets/images/backgrounds/cleaning-background.jpg';
+import PasswordStrength from './PasswordStrength';
 
 const Register: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -108,6 +109,7 @@ const Register: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
                 />
+                <PasswordStrength password={password} />
               </div>
 
               <div>

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './config/supabase';
 import { Session } from '@supabase/supabase-js';
-import { BackupService } from './services/backupService';
 import AdminService from './services/adminService';
 
 // Import components
@@ -13,6 +12,7 @@ import ReportHistory from './components/report/ReportHistory';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Layout from './components/layout/Layout';
 import LandingPage from './components/landing/LandingPage';
+import MaintenanceGuard from './components/auth/MaintenanceGuard';
 
 // Import styles
 import './styles/landing.css';
@@ -20,7 +20,6 @@ import './styles/landing.css';
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [backupService, setBackupService] = useState<BackupService | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -54,24 +53,6 @@ function App() {
     checkAdminStatus();
   }, [session]);
 
-  // Initialize backup service only for admin users
-  useEffect(() => {
-    if (isAdmin) {
-      const service = BackupService.getInstance();
-      service.startBackupService();
-      setBackupService(service);
-    } else if (backupService) {
-      backupService.stopBackupService();
-      setBackupService(null);
-    }
-
-    return () => {
-      if (backupService) {
-        backupService.stopBackupService();
-      }
-    };
-  }, [isAdmin]);
-
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -82,53 +63,49 @@ function App() {
 
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route
-          path="/login"
-          element={!session ? <Login /> : <Navigate to="/report" />}
-        />
-        <Route
-          path="/register"
-          element={!session ? <Register /> : <Navigate to="/report" />}
-        />
-        <Route
-          path="/report"
-          element={
-            session ? (
-              <Layout>
-                <ReportForm />
-              </Layout>
-            ) : (
-              <Navigate to="/login" />
-            )
-          }
-        />
-        <Route
-          path="/history"
-          element={
-            session ? (
-              <Layout>
-                <ReportHistory />
-              </Layout>
-            ) : (
-              <Navigate to="/login" />
-            )
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            isAdmin ? (
-              <Layout>
-                <AdminDashboard />
-              </Layout>
-            ) : (
-              <Navigate to="/report" />
-            )
-          }
-        />
-      </Routes>
+      <MaintenanceGuard>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route
+            path="/report"
+            element={
+              session ? (
+                <Layout>
+                  <ReportForm />
+                </Layout>
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/history"
+            element={
+              session ? (
+                <Layout>
+                  <ReportHistory />
+                </Layout>
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              isAdmin ? (
+                <Layout>
+                  <AdminDashboard />
+                </Layout>
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+        </Routes>
+      </MaintenanceGuard>
     </Router>
   );
 }
