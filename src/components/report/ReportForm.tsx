@@ -135,6 +135,13 @@ const ReportForm: React.FC = () => {
     }
   }, []);
 
+  const handleManualLocationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocation(e.target.value);
+    setLatitude(null);
+    setLongitude(null);
+    setSelectedPosition(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -354,17 +361,18 @@ const ReportForm: React.FC = () => {
                   Click on the map to select the location of the violation
                 </p>
                 <div className="mt-2">
-                  <LocationMap onLocationSelect={handleLocationSelect} />
+                  <LocationMap onLocationSelect={handleLocationSelect} initialPosition={selectedPosition || undefined} />
                 </div>
-
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Selected location coordinates"
-                  className="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-                  readOnly
-                />
+                <div className="mt-2">
+                  <label className="block text-xs text-gray-600">Manual Location/Address</label>
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={handleManualLocationChange}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+                    placeholder="Enter your address or location manually"
+                  />
+                </div>
               </div>
             </div>
 
