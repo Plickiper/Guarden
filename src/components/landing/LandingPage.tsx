@@ -8,20 +8,20 @@ import '../../styles/landing.css';
 
 const LandingPage: React.FC = () => {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Hero Section */}
       <div 
-        className="min-h-screen landing-background flex items-center justify-center"
+        className="min-h-screen landing-background flex items-center justify-center dark:bg-gray-950"
         style={{ backgroundImage: `url(${cleaningBackground})` }}
       >
         <div className="container mx-auto px-4 py-16 landing-content text-center">
           <div className="flex items-center justify-center gap-3 mb-4">
             <i className='bx bxs-shield text-5xl text-green-600'></i>
-            <h1 className="text-6xl font-bold text-gray-900 animate-scale-in title-poppins">
+            <h1 className="text-6xl font-bold text-gray-900 dark:text-white animate-scale-in title-poppins">
               Guarden
             </h1>
           </div>
-          <p className="text-2xl text-gray-600 animate-fade-in-delay mb-8">
+          <p className="text-2xl text-gray-600 dark:text-gray-300 animate-fade-in-delay mb-8">
             Your trusted platform for community safety
           </p>
           <Link
@@ -116,12 +116,12 @@ const LandingPage: React.FC = () => {
       </div>
 
       {/* CTA Section */}
-      <div className="py-20 bg-gray-50">
+      <div className="py-20 bg-gray-50 dark:bg-gray-950">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-4xl font-bold text-gray-900 mb-8">
+          <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-8">
             Ready to Make a Difference?
           </h2>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
             Join our community today and help create a safer environment for everyone.
           </p>
           <Link

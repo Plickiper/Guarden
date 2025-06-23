@@ -216,7 +216,7 @@ const ReportForm: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white shadow sm:rounded-lg">
+      <div className="bg-gray-100 dark:bg-gray-800 shadow sm:rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-lg leading-6 font-medium text-gray-900">
             Submit a Report

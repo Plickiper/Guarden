@@ -21,6 +21,16 @@ const Register: React.FC = () => {
       return;
     }
 
+    // Password restrictions
+    if (!/[A-Z]/.test(password)) {
+      setError('Password must have at least 1 uppercase letter.');
+      return;
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      setError('Password must have at least 1 special character.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -56,11 +66,11 @@ const Register: React.FC = () => {
       />
       
       {/* Overlay */}
-      <div className="fixed inset-0 bg-white bg-opacity-90" />
+      <div className="fixed inset-0 bg-white bg-opacity-90 dark:bg-gray-900 dark:bg-opacity-90" />
 
       {/* Content */}
       <div className="relative min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
+        <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-900 p-8 rounded-xl shadow-lg">
           <div className="text-center">
             <div className="flex items-center justify-center gap-3 mb-4">
               <i className='bx bxs-shield text-4xl text-green-600'></i>
