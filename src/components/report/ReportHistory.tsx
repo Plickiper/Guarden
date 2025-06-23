@@ -16,6 +16,7 @@ interface Report {
   status: 'pending' | 'in-progress' | 'resolved';
   timestamp: number;
   user_id: string;
+  remarks?: string;
 }
 
 const ReportHistory: React.FC = () => {
@@ -145,6 +146,9 @@ const ReportHistory: React.FC = () => {
                   </>
                 )}
                 <p className="mt-2 text-gray-700">{report.description}</p>
+                {report.remarks && (
+                  <p className="text-sm text-gray-500 mt-2"><strong>Remarks:</strong> {report.remarks}</p>
+                )}
               </div>
 
               {report.imageUrl && (

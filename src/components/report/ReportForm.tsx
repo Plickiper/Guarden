@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../config/supabase';
 import LocationMap from '../map/LocationMap';
 import { findAppropriateAgency, generateEmailContent, sendEmail } from '../../services/emailService';
+import CryptoJS from 'crypto-js';
 
 interface ReportData {
   type: 'environmental' | 'regulatory';
@@ -20,9 +21,17 @@ interface ReportData {
   address?: string;
   barangay?: string;
   landmark?: string;
+  remarks: string;
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+
+// AES encryption key (should be stored securely in production)
+const ENCRYPTION_KEY = 'REPLACE_WITH_A_SECURE_KEY';
+
+function encryptField(value: string): string {
+  return CryptoJS.AES.encrypt(value, ENCRYPTION_KEY).toString();
+}
 
 const ReportForm: React.FC = () => {
   const navigate = useNavigate();
@@ -152,26 +161,35 @@ const ReportForm: React.FC = () => {
         imageUrl = publicUrl;
       }
 
+      // Encrypt text fields before sending
+      const encryptedCategory = category ? encryptField(category) : undefined;
+      const encryptedCity = city ? encryptField(city) : undefined;
+      const encryptedDescription = description ? encryptField(description) : undefined;
+      const encryptedAddress = location ? encryptField(location) : undefined;
+      const encryptedBarangay = location.split(',')[1]?.trim() ? encryptField(location.split(',')[1]?.trim()) : undefined;
+      const encryptedLandmark = location.split(',')[0]?.trim() ? encryptField(location.split(',')[0]?.trim()) : undefined;
+      const encryptedLocation = location ? encryptField(location) : undefined;
+
       // Insert report into database
       const { error: insertError } = await supabase
         .from('reports')
         .insert([
           {
             report_type: reportType,
-            category: reportType === 'environmental' ? category : undefined,
-            city: city,
+            category: reportType === 'environmental' ? encryptedCategory : undefined,
+            city: encryptedCity,
             violation_type: reportType === 'regulatory' ? violationType : undefined,
-            description,
-            location,
+            description: encryptedDescription,
+            location: encryptedLocation,
             image_url: imageUrl,
             status: 'pending',
             timestamp: Date.now(),
             user_id: user?.id,
             latitude: latitude,
             longitude: longitude,
-            address: location,
-            barangay: location.split(',')[1]?.trim(),
-            landmark: location.split(',')[0]?.trim()
+            address: encryptedAddress,
+            barangay: encryptedBarangay,
+            landmark: encryptedLandmark
           }
         ]);
 

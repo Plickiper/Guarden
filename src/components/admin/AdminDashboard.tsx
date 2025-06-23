@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../config/supabase';
 import { findAppropriateAgency, generateEmailContent, sendEmail } from '../../services/emailService';
 import { MaintenanceService } from '../../services/maintenanceService';
+import { useNavigate } from 'react-router-dom';
+import CryptoJS from 'crypto-js';
 
 interface Report {
   id: string;
-  type: 'environmental' | 'regulatory';
+  type: string;
   category?: string;
   city?: string;
   violation_type?: string;
@@ -16,6 +18,18 @@ interface Report {
   timestamp: number;
   user_id: string;
   user_email?: string;
+  remarks?: string;
+}
+
+const ENCRYPTION_KEY = 'REPLACE_WITH_A_SECURE_KEY';
+
+function decryptField(value: string): string {
+  try {
+    const bytes = CryptoJS.AES.decrypt(value, ENCRYPTION_KEY);
+    return bytes.toString(CryptoJS.enc.Utf8) || value;
+  } catch {
+    return value;
+  }
 }
 
 const AdminDashboard: React.FC = () => {
@@ -26,6 +40,9 @@ const AdminDashboard: React.FC = () => {
   const [sendingEmail, setSendingEmail] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in-progress' | 'done'>('all');
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [editingRemarksId, setEditingRemarksId] = useState<string | null>(null);
+  const [remarksDraft, setRemarksDraft] = useState<string>('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchReports();
@@ -243,55 +260,140 @@ const AdminDashboard: React.FC = () => {
 
   const filteredReports = reports.filter(report => 
     statusFilter === 'all' ? true : report.status === statusFilter
-  );
+  ).map(report => ({
+    ...report,
+    // Only decrypt fields that were previously encrypted, except 'type'
+    category: report.category ? decryptField(report.category) : report.category,
+    city: report.city ? decryptField(report.city) : report.city,
+    violation_type: report.violation_type ? decryptField(report.violation_type) : report.violation_type,
+    location: report.location ? decryptField(report.location) : report.location,
+    description: report.description ? decryptField(report.description) : report.description,
+    user_id: report.user_id ? decryptField(report.user_id) : report.user_id,
+    remarks: report.remarks ? decryptField(report.remarks) : report.remarks,
+    // type remains as is (plain text)
+  }));
+
+  const handleExportPDF = async () => {
+    const jsPDFModule = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
+    const doc = new jsPDFModule.jsPDF();
+    doc.text('Reports Export', 14, 16);
+    const tableColumn = [
+      'ID',
+      'Type',
+      'Category/Violation',
+      'City',
+      'Description',
+      'Status',
+      'Timestamp',
+      'Remarks',
+    ];
+    const tableRows = reports.map((report) => [
+      report.id,
+      report.type,
+      report.category || report.violation_type || '-',
+      report.city || '-',
+      report.description,
+      report.status,
+      new Date(report.timestamp).toLocaleString(),
+      report.remarks || '-',
+    ]);
+    autoTable(doc, { head: [tableColumn], body: tableRows, startY: 22 });
+    doc.save('reports_export.pdf');
+  };
+
+  const handleEditRemarks = (report: Report) => {
+    setEditingRemarksId(report.id);
+    setRemarksDraft(report.remarks || '');
+  };
+
+  const handleSaveRemarks = async (reportId: string) => {
+    setError('');
+    try {
+      const { error: updateError } = await supabase
+        .from('reports')
+        .update({ remarks: remarksDraft })
+        .eq('id', reportId);
+      if (updateError) throw updateError;
+      // Update the local state for the edited report's remarks
+      setReports(prevReports => prevReports.map(r =>
+        r.id === reportId ? { ...r, remarks: remarksDraft } : r
+      ));
+      setEditingRemarksId(null);
+      setRemarksDraft('');
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleCancelRemarks = () => {
+    setEditingRemarksId(null);
+    setRemarksDraft('');
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
-      
-      <div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="sm:flex sm:items-center">
-            <div className="sm:flex-auto">
-              <p className="mt-2 text-sm text-gray-700">
-                Review and manage violation reports
-              </p>
-            </div>
-          </div>
-
-          {error && (
-            <div className="mt-4 rounded-md bg-red-50 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700">{error}</p>
-                </div>
+      <div className="max-w-7xl mx-auto p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-900">Admin Dashboard</h2>
+          <button
+            onClick={handleExportPDF}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            Export as PDF
+          </button>
+        </div>
+        <div>
+          <div className="w-full min-w-[1200px] overflow-x-auto py-8">
+            <div className="sm:flex sm:items-center">
+              <div className="sm:flex-auto">
+                <p className="mt-2 text-sm text-gray-700">
+                  Review and manage violation reports
+                </p>
               </div>
             </div>
-          )}
-          
-          <div className="mt-4 flex space-x-4">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-            >
-              <option value="all">All Reports</option>
-              <option value="pending">Pending</option>
-              <option value="in-progress">In Progress</option>
-              <option value="done">Done</option>
-            </select>
-          </div>
 
-          <div className="mt-8 flex flex-col">
-            <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-              <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+            {error && (
+              <div className="mt-4 rounded-md bg-red-50 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="mt-4 flex space-x-4">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+              >
+                <option value="all">All Reports</option>
+                <option value="pending">Pending</option>
+                <option value="in-progress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+
+            <div className="mt-8 flex flex-col">
+              <div className="inline-block min-w-full py-2 align-middle">
                 <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-300">
+                  <table className="min-w-full divide-y divide-gray-300 table-fixed">
+                    <colgroup>
+                      <col style={{ width: '7%' }} /> {/* Type */}
+                      <col style={{ width: '18%' }} /> {/* Description */}
+                      <col style={{ width: '12%' }} /> {/* Location */}
+                      <col style={{ width: '8%' }} /> {/* Status */}
+                      <col style={{ width: '12%' }} /> {/* Submitted By */}
+                      <col style={{ width: '13%' }} /> {/* Remarks */}
+                      <col style={{ width: '15%' }} /> {/* Actions */}
+                    </colgroup>
                     <thead className="bg-gray-50">
                       <tr>
                         <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
@@ -310,6 +412,9 @@ const AdminDashboard: React.FC = () => {
                           Submitted By
                         </th>
                         <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
+                          Remarks
+                        </th>
+                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                           Actions
                         </th>
                       </tr>
@@ -317,34 +422,48 @@ const AdminDashboard: React.FC = () => {
                     <tbody className="divide-y divide-gray-200 bg-white">
                       {filteredReports.map((report) => (
                         <tr key={report.id}>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            {report.type}
-                            {report.category && <div className="text-xs">{report.category}</div>}
-                            {report.violation_type && <div className="text-xs">{report.violation_type}</div>}
-                          </td>
-                          <td className="px-3 py-4 text-sm text-gray-500">
-                            <div className="max-w-xs truncate">{report.description}</div>
-                            {report.image_url && (
-                              <a
-                                href={report.image_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary-600 hover:text-primary-900"
-                              >
-                                View Image
-                              </a>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{report.type}{report.category && <div className="text-xs">{report.category}</div>}{report.violation_type && <div className="text-xs">{report.violation_type}</div>}</td>
+                          <td className="px-3 py-4 text-sm text-gray-500 break-words max-w-xs">{report.description}{report.image_url && (<a href={report.image_url} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-900 block">View Image</a>)}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{report.location}</td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm"><span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getStatusColor(report.status)}`}>{report.status}</span></td>
+                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 break-words max-w-xs">{report.user_id}</td>
+                          <td className="px-6 py-4 text-sm text-gray-500 break-words max-w-xs">
+                            {editingRemarksId === report.id ? (
+                              <div>
+                                <textarea
+                                  className="w-full rounded border border-gray-300 p-1 text-sm"
+                                  value={remarksDraft}
+                                  onChange={e => setRemarksDraft(e.target.value)}
+                                  rows={2}
+                                  placeholder="Leave a note about user activity, moderation, or verification..."
+                                />
+                                <div className="flex space-x-2 mt-1">
+                                  <button
+                                    onClick={() => handleSaveRemarks(report.id)}
+                                    className="px-2 py-1 text-xs rounded bg-primary-600 text-white hover:bg-primary-700"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    onClick={handleCancelRemarks}
+                                    className="px-2 py-1 text-xs rounded bg-gray-300 text-gray-700 hover:bg-gray-400"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between">
+                                <span>{report.remarks || <span className="italic text-gray-400">No remarks</span>}</span>
+                                <button
+                                  onClick={() => handleEditRemarks(report)}
+                                  className="ml-2 text-xs text-primary-600 hover:underline"
+                                  title="Edit remarks"
+                                >
+                                  Edit
+                                </button>
+                              </div>
                             )}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            {report.location}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm">
-                            <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${getStatusColor(report.status)}`}>
-                              {report.status}
-                            </span>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                            {report.user_id}
                           </td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                             <div className="space-y-2">

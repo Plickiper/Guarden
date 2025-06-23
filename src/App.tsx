@@ -13,6 +13,7 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import Layout from './components/layout/Layout';
 import LandingPage from './components/landing/LandingPage';
 import MaintenanceGuard from './components/auth/MaintenanceGuard';
+import AuditLog from './components/admin/AuditLog';
 
 // Import styles
 import './styles/landing.css';
@@ -98,6 +99,18 @@ function App() {
               isAdmin ? (
                 <Layout>
                   <AdminDashboard />
+                </Layout>
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/admin/audit-log"
+            element={
+              isAdmin ? (
+                <Layout>
+                  <AuditLog />
                 </Layout>
               ) : (
                 <Navigate to="/" replace />
