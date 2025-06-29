@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../config/supabase';
-import { findAppropriateAgency, generateEmailContent, sendEmail } from '../../services/emailService';
-import { MaintenanceService } from '../../services/maintenanceService';
-import { useNavigate } from 'react-router-dom';
+import { generateEmailContent, sendEmail } from '../../services/emailService';
 import CryptoJS from 'crypto-js';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 
 interface Report {
   id: string;
@@ -34,7 +34,6 @@ function decryptField(value: string): string {
 
 const AdminDashboard: React.FC = () => {
   const [reports, setReports] = useState<Report[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedAgency, setSelectedAgency] = useState<string>('');
   const [sendingEmail, setSendingEmail] = useState<string | null>(null);
@@ -42,7 +41,14 @@ const AdminDashboard: React.FC = () => {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [editingRemarksId, setEditingRemarksId] = useState<string | null>(null);
   const [remarksDraft, setRemarksDraft] = useState<string>('');
-  const navigate = useNavigate();
+
+  // New filter states
+  const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [violationTypeFilter, setViolationTypeFilter] = useState<string>('all');
+  const [cityFilter, setCityFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchReports();
@@ -50,7 +56,6 @@ const AdminDashboard: React.FC = () => {
 
   const fetchReports = async () => {
     try {
-      setLoading(true);
       // Get all reports with user information from the view
       const { data: reportsData, error: reportsError } = await supabase
         .from('reports_with_users')
@@ -70,8 +75,6 @@ const AdminDashboard: React.FC = () => {
       setReports(reportsData);
     } catch (error: any) {
       setError(error.message);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -258,20 +261,160 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const filteredReports = reports.filter(report => 
-    statusFilter === 'all' ? true : report.status === statusFilter
-  ).map(report => ({
-    ...report,
-    // Only decrypt fields that were previously encrypted, except 'type'
-    category: report.category ? decryptField(report.category) : report.category,
-    city: report.city ? decryptField(report.city) : report.city,
-    violation_type: report.violation_type ? decryptField(report.violation_type) : report.violation_type,
-    location: report.location ? decryptField(report.location) : report.location,
-    description: report.description ? decryptField(report.description) : report.description,
-    user_id: report.user_id ? decryptField(report.user_id) : report.user_id,
-    remarks: report.remarks ? decryptField(report.remarks) : report.remarks,
-    // type remains as is (plain text)
-  }));
+  // Enhanced filtering logic with all filters
+  const filteredReports = useMemo(() => {
+    let filtered = reports.map(report => ({
+      ...report,
+      // Only decrypt fields that were previously encrypted, except 'type'
+      category: report.category ? decryptField(report.category) : report.category,
+      city: report.city ? decryptField(report.city) : report.city,
+      violation_type: report.violation_type ? decryptField(report.violation_type) : report.violation_type,
+      location: report.location ? decryptField(report.location) : report.location,
+      description: report.description ? decryptField(report.description) : report.description,
+      user_id: report.user_id ? decryptField(report.user_id) : report.user_id,
+      remarks: report.remarks ? decryptField(report.remarks) : report.remarks,
+    }));
+
+    // Status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(report => report.status === statusFilter);
+    }
+
+    // Date range filter
+    if (dateRange !== 'all') {
+      const now = new Date();
+      let startDate: Date;
+      let endDate: Date;
+
+      switch (dateRange) {
+        case 'today':
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+          break;
+        case 'week':
+          startDate = startOfWeek(now, { weekStartsOn: 1 });
+          endDate = endOfWeek(now, { weekStartsOn: 1 });
+          break;
+        case 'month':
+          startDate = startOfMonth(now);
+          endDate = endOfMonth(now);
+          break;
+        case 'custom':
+          if (customStartDate && customEndDate) {
+            startDate = new Date(customStartDate);
+            endDate = new Date(customEndDate);
+          } else {
+            return filtered;
+          }
+          break;
+        default:
+          return filtered;
+      }
+
+      filtered = filtered.filter(report => {
+        const reportDate = new Date(report.timestamp);
+        return isWithinInterval(reportDate, { start: startDate, end: endDate });
+      });
+    }
+
+    // Category filter
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(report => report.category === categoryFilter);
+    }
+
+    // Violation type filter
+    if (violationTypeFilter !== 'all') {
+      filtered = filtered.filter(report => report.violation_type === violationTypeFilter);
+    }
+
+    // City filter
+    if (cityFilter !== 'all') {
+      filtered = filtered.filter(report => report.city === cityFilter);
+    }
+
+    return filtered;
+  }, [reports, statusFilter, dateRange, customStartDate, customEndDate, categoryFilter, violationTypeFilter, cityFilter]);
+
+  // Graph data preparation
+  const graphData = useMemo(() => {
+    // Status distribution for pie chart
+    const statusData = filteredReports.reduce((acc, report) => {
+      acc[report.status] = (acc[report.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Category distribution for bar chart
+    const categoryData = filteredReports.reduce((acc, report) => {
+      const category = report.category || 'Uncategorized';
+      acc[category] = (acc[category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // City distribution for bar chart
+    const cityData = filteredReports.reduce((acc, report) => {
+      const city = report.city || 'Unknown';
+      acc[city] = (acc[city] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Daily trend for line chart (last 7 days)
+    const dailyTrend = Array.from({ length: 7 }, (_, i) => {
+      const date = subDays(new Date(), i);
+      const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59);
+      
+      const count = filteredReports.filter(report => {
+        const reportDate = new Date(report.timestamp);
+        return isWithinInterval(reportDate, { start: dayStart, end: dayEnd });
+      }).length;
+
+      return {
+        date: format(date, 'MMM dd'),
+        count,
+        fullDate: date
+      };
+    }).reverse();
+
+    return {
+      statusData: Object.entries(statusData).map(([status, count]) => ({ status, count })),
+      categoryData: Object.entries(categoryData).map(([category, count]) => ({ category, count })),
+      cityData: Object.entries(cityData).map(([city, count]) => ({ city, count })),
+      dailyTrend
+    };
+  }, [filteredReports]);
+
+  // Get unique values for filter dropdowns
+  const uniqueCategories = useMemo(() => {
+    const categories = new Set<string>();
+    reports.forEach(report => {
+      if (report.category) {
+        categories.add(decryptField(report.category));
+      }
+    });
+    return Array.from(categories).sort();
+  }, [reports]);
+
+  const uniqueViolationTypes = useMemo(() => {
+    const types = new Set<string>();
+    reports.forEach(report => {
+      if (report.violation_type) {
+        types.add(decryptField(report.violation_type));
+      }
+    });
+    return Array.from(types).sort();
+  }, [reports]);
+
+  const uniqueCities = useMemo(() => {
+    const cities = new Set<string>();
+    reports.forEach(report => {
+      if (report.city) {
+        cities.add(decryptField(report.city));
+      }
+    });
+    return Array.from(cities).sort();
+  }, [reports]);
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
   const handleExportPDF = async () => {
     const jsPDFModule = await import('jspdf');
@@ -368,17 +511,194 @@ const AdminDashboard: React.FC = () => {
               </div>
             )}
             
-            <div className="mt-4 flex space-x-4">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-              >
-                <option value="all">All Reports</option>
-                <option value="pending">Pending</option>
-                <option value="in-progress">In Progress</option>
-                <option value="done">Done</option>
-              </select>
+            {/* Comprehensive Filter Controls */}
+            <div className="mt-6 bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter Controls</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Date Range Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+                  <select
+                    value={dateRange}
+                    onChange={(e) => setDateRange(e.target.value as any)}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                  >
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="custom">Custom Range</option>
+                  </select>
+                </div>
+
+                {/* Custom Date Range */}
+                {dateRange === 'custom' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Status Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="in-progress">In Progress</option>
+                    <option value="done">Done</option>
+                  </select>
+                </div>
+
+                {/* Category Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                  >
+                    <option value="all">All Categories</option>
+                    {uniqueCategories.map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Violation Type Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Violation Type</label>
+                  <select
+                    value={violationTypeFilter}
+                    onChange={(e) => setViolationTypeFilter(e.target.value)}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                  >
+                    <option value="all">All Types</option>
+                    {uniqueViolationTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* City Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                  <select
+                    value={cityFilter}
+                    onChange={(e) => setCityFilter(e.target.value)}
+                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
+                  >
+                    <option value="all">All Cities</option>
+                    {uniqueCities.map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Filter Summary */}
+              <div className="mt-4 p-3 bg-gray-50 rounded-md">
+                <p className="text-sm text-gray-600">
+                  Showing <span className="font-semibold">{filteredReports.length}</span> reports
+                  {dateRange !== 'all' && ` for ${dateRange === 'today' ? 'today' : dateRange === 'week' ? 'this week' : dateRange === 'month' ? 'this month' : 'custom range'}`}
+                  {statusFilter !== 'all' && ` with status "${statusFilter}"`}
+                  {categoryFilter !== 'all' && ` in category "${categoryFilter}"`}
+                  {violationTypeFilter !== 'all' && ` of type "${violationTypeFilter}"`}
+                  {cityFilter !== 'all' && ` in city "${cityFilter}"`}
+                </p>
+              </div>
+            </div>
+
+            {/* Graphs Section */}
+            <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Status Distribution Pie Chart */}
+              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={graphData.statusData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ status, percent }) => `${status} ${percent ? (percent * 100).toFixed(0) : 0}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="count"
+                    >
+                      {graphData.statusData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Daily Trend Line Chart */}
+              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Trend (Last 7 Days)</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={graphData.dailyTrend}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="count" stroke="#8884d8" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Category Distribution Bar Chart */}
+              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Category Distribution</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={graphData.categoryData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="category" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="count" fill="#8884d8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* City Distribution Bar Chart */}
+              <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">City Distribution</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={graphData.cityData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="city" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="count" fill="#00C49F" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             <div className="mt-8 flex flex-col">
