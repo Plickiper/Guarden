@@ -54,6 +54,21 @@ function App() {
     checkAdminStatus();
   }, [session]);
 
+  useEffect(() => {
+    if (session) {
+      // Prevent back/forward navigation when logged in
+      window.history.pushState(null, '', window.location.href);
+      const handlePopState = (event: PopStateEvent) => {
+        window.history.pushState(null, '', window.location.href);
+      };
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [session]);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">

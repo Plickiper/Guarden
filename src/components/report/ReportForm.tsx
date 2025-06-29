@@ -14,7 +14,7 @@ interface ReportData {
   latitude: number;
   longitude: number;
   description: string;
-  image_url?: string;
+  media_url?: string;
   status: 'pending' | 'in-progress' | 'done';
   user_id: string;
   timestamp: number;
@@ -24,7 +24,8 @@ interface ReportData {
   remarks: string;
 }
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+const ALLOWED_FILE_TYPES = /^(image\/(jpeg|png|gif))|(video\/(mp4|quicktime|x-matroska))$/;
 
 // AES encryption key (should be stored securely in production)
 const ENCRYPTION_KEY = 'REPLACE_WITH_A_SECURE_KEY';
@@ -41,8 +42,8 @@ const ReportForm: React.FC = () => {
   const [violationType, setViolationType] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -88,20 +89,20 @@ const ReportForm: React.FC = () => {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > MAX_FILE_SIZE) {
-        setError('File size must be less than 5MB');
+        setError('File size must be less than 50MB');
         return;
       }
-      if (!file.type.match(/^image\/(jpeg|png)$/)) {
-        setError('Only PNG and JPEG images are allowed');
+      if (!file.type.match(ALLOWED_FILE_TYPES)) {
+        setError('Only PNG, JPEG, GIF, MP4, MOV, and MKV files are allowed.');
         return;
       }
-      setImageFile(file);
+      setMediaFile(file);
       const previewUrl = URL.createObjectURL(file);
-      setImagePreview(previewUrl);
+      setMediaPreview(previewUrl);
     }
   };
 
@@ -122,16 +123,16 @@ const ReportForm: React.FC = () => {
     const file = e.dataTransfer.files?.[0];
     if (file) {
       if (file.size > MAX_FILE_SIZE) {
-        setError('File size must be less than 5MB');
+        setError('File size must be less than 50MB');
         return;
       }
-      if (!file.type.match(/^image\/(jpeg|png)$/)) {
-        setError('Only PNG and JPEG images are allowed');
+      if (!file.type.match(ALLOWED_FILE_TYPES)) {
+        setError('Only PNG, JPEG, GIF, MP4, MOV, and MKV files are allowed.');
         return;
       }
-      setImageFile(file);
+      setMediaFile(file);
       const previewUrl = URL.createObjectURL(file);
-      setImagePreview(previewUrl);
+      setMediaPreview(previewUrl);
     }
   }, []);
 
@@ -148,24 +149,24 @@ const ReportForm: React.FC = () => {
     setError('');
 
     try {
-      // Upload image if exists
-      let imageUrl = '';
-      if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
+      // Upload media if exists
+      let mediaUrl = '';
+      if (mediaFile) {
+        const fileExt = mediaFile.name.split('.').pop();
         const fileName = `${Math.random()}.${fileExt}`;
         const filePath = `${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('report-images')
-          .upload(filePath, imageFile);
+          .from('report-media')
+          .upload(filePath, mediaFile);
 
         if (uploadError) throw uploadError;
 
         const { data: { publicUrl } } = supabase.storage
-          .from('report-images')
+          .from('report-media')
           .getPublicUrl(filePath);
 
-        imageUrl = publicUrl;
+        mediaUrl = publicUrl;
       }
 
       // Encrypt text fields before sending
@@ -188,7 +189,7 @@ const ReportForm: React.FC = () => {
             violation_type: reportType === 'regulatory' ? violationType : undefined,
             description: encryptedDescription,
             location: encryptedLocation,
-            image_url: imageUrl,
+            media_url: mediaUrl,
             status: 'pending',
             timestamp: Date.now(),
             user_id: user?.id,
@@ -209,8 +210,8 @@ const ReportForm: React.FC = () => {
       setViolationType('');
       setDescription('');
       setLocation('');
-      setImageFile(null);
-      setImagePreview(null);
+      setMediaFile(null);
+      setMediaPreview(null);
       setLatitude(null);
       setLongitude(null);
       setSuccess(true);
@@ -392,72 +393,40 @@ const ReportForm: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Photo Evidence (Optional)</label>
-              <div
-                className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md ${
-                  isDragging ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
-                }`}
+              <label htmlFor="photo" className="block text-sm font-medium text-gray-700">
+                Photo/Video Evidence
+              </label>
+              <div 
+                onDrop={handleDrop} 
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
+                className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 ${isDragging ? "border-indigo-500" : "border-gray-300"} border-dashed rounded-md`}
               >
                 <div className="space-y-1 text-center">
-                  {imagePreview ? (
-                    <div>
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="mx-auto h-32 w-auto object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setImageFile(null);
-                          setImagePreview(null);
-                        }}
-                        className="mt-2 text-sm text-red-600 hover:text-red-500"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <svg
-                        className="mx-auto h-12 w-12 text-gray-400"
-                        stroke="currentColor"
-                        fill="none"
-                        viewBox="0 0 48 48"
-                        aria-hidden="true"
-                      >
-                        <path
-                          d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <div className="flex text-sm text-gray-600">
-                        <label
-                          htmlFor="file-upload"
-                          className="relative cursor-pointer bg-white rounded-md font-medium text-primary-600 hover:text-primary-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-primary-500"
-                        >
-                          <span>Upload a file</span>
-                          <input
-                            id="file-upload"
-                            name="file-upload"
-                            type="file"
-                            className="sr-only"
-                            accept="image/png,image/jpeg"
-                            onChange={handleImageChange}
-                          />
-                        </label>
-                        <p className="pl-1">or drag and drop</p>
-                      </div>
-                      <p className="text-xs text-gray-500">PNG, JPEG up to 5MB</p>
-                    </>
-                  )}
+                  <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <div className="flex text-sm text-gray-600">
+                    <label htmlFor="file-upload" className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                      <span>Upload a file</span>
+                      <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleMediaChange} accept="image/png, image/jpeg, image/gif, video/mp4, video/quicktime, video/x-matroska" />
+                    </label>
+                    <p className="pl-1">or drag and drop</p>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    PNG, JPG, GIF, MP4, MOV, MKV up to 50MB
+                  </p>
                 </div>
               </div>
+              {mediaPreview && (
+                <div className="mt-4">
+                  {mediaFile?.type.startsWith('video/') ? (
+                    <video src={mediaPreview} controls className="max-h-60 rounded-lg" />
+                  ) : (
+                    <img src={mediaPreview} alt="Preview" className="max-h-60 rounded-lg" />
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end">
