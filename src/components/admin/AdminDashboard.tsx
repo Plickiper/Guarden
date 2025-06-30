@@ -419,7 +419,7 @@ const AdminDashboard: React.FC = () => {
   const handleExportPDF = async () => {
     const jsPDFModule = await import('jspdf');
     const autoTable = (await import('jspdf-autotable')).default;
-    const doc = new jsPDFModule.jsPDF();
+    const doc = new jsPDFModule.default({ orientation: 'landscape' });
     doc.text('Reports Export', 14, 16);
     const tableColumn = [
       'ID',
@@ -434,9 +434,9 @@ const AdminDashboard: React.FC = () => {
     const tableRows = reports.map((report) => [
       report.id,
       report.type,
-      report.category || report.violation_type || '-',
-      report.city || '-',
-      report.description,
+      (report.category ? decryptField(report.category) : null) || (report.violation_type ? decryptField(report.violation_type) : null) || '-',
+      report.city ? decryptField(report.city) : '-',
+      decryptField(report.description),
       report.status,
       new Date(report.timestamp).toLocaleString(),
       report.remarks || '-',
