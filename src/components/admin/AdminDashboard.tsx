@@ -4,6 +4,7 @@ import { generateEmailContent, sendEmail } from '../../services/emailService';
 import CryptoJS from 'crypto-js';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import html2canvas from 'html2canvas';
 
 interface Report {
   id: string;
@@ -420,29 +421,54 @@ const AdminDashboard: React.FC = () => {
     const jsPDFModule = await import('jspdf');
     const autoTable = (await import('jspdf-autotable')).default;
     const doc = new jsPDFModule.default({ orientation: 'landscape' });
-    doc.text('Reports Export', 14, 16);
+
+    // 1. Capture the graphs section as before
+    const graphsSection = document.getElementById('admin-dashboard-graphs');
+    if (graphsSection) {
+      const canvas = await html2canvas(graphsSection, { backgroundColor: '#fff', scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const pdfWidth = doc.internal.pageSize.getWidth();
+      const pdfHeight = doc.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min((pdfWidth - 20) / imgWidth, (pdfHeight - 30) / imgHeight);
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 22;
+      doc.text('Dashboard Graphs', 14, 16);
+      doc.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      doc.addPage();
+    }
+
+    // 2. Export the filtered table using jspdf-autotable
+    doc.text('Filtered Reports Table', 14, 16);
     const tableColumn = [
-      'ID',
       'Type',
-      'Category/Violation',
-      'City',
       'Description',
+      'Location',
       'Status',
-      'Timestamp',
+      'Submitted By',
       'Remarks',
     ];
-    const tableRows = reports.map((report) => [
-      report.id,
-      report.type,
-      (report.category ? decryptField(report.category) : null) || (report.violation_type ? decryptField(report.violation_type) : null) || '-',
-      report.city ? decryptField(report.city) : '-',
-      decryptField(report.description),
+    const tableRows = filteredReports.map((report) => [
+      report.type + (report.category ? `\n${report.category}` : '') + (report.violation_type ? `\n${report.violation_type}` : ''),
+      report.description + (report.image_url ? `\nImage: ${report.image_url}` : ''),
+      report.location,
       report.status,
-      new Date(report.timestamp).toLocaleString(),
+      report.user_id,
       report.remarks || '-',
     ]);
-    autoTable(doc, { head: [tableColumn], body: tableRows, startY: 22 });
-    doc.save('reports_export.pdf');
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 22,
+      styles: { fontSize: 8, cellWidth: 'auto', overflow: 'linebreak' },
+      headStyles: { fillColor: [136, 132, 216] },
+      margin: { left: 10, right: 10 },
+      theme: 'striped',
+      // Remove didDrawPage label for continuation pages
+    });
+
+    doc.save('admin_dashboard_export.pdf');
   };
 
   const handleEditRemarks = (report: Report) => {
@@ -630,7 +656,7 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Graphs Section */}
-            <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div id="admin-dashboard-graphs" className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Status Distribution Pie Chart */}
               <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Distribution</h3>
@@ -701,7 +727,7 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-8 flex flex-col">
+            <div id="admin-dashboard-table" className="mt-8 flex flex-col">
               <div className="inline-block min-w-full py-2 align-middle">
                 <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
                   <table className="min-w-full divide-y divide-gray-300 table-fixed">
