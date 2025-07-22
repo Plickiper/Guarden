@@ -57,7 +57,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <nav className="bg-white shadow-sm dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex">
+            <div className="flex items-center">
+              <button
+                onClick={handleSignOut}
+                className="mr-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              >
+                Sign Out
+              </button>
               <div className="flex-shrink-0 flex items-center">
                 <Link to="/" className="text-2xl font-bold text-primary-600">
                   <i className="bx bx-shield mr-2"></i>
@@ -96,12 +102,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
             </div>
             <div className="flex items-center">
-              <button
-                onClick={handleSignOut}
-                className="ml-3 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-              >
-                Sign Out
-              </button>
               <DarkModeToggle />
             </div>
           </div>
